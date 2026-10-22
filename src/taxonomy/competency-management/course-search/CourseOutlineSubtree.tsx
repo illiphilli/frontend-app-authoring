@@ -1,5 +1,6 @@
 import { type ReactNode, useState } from 'react';
 
+import classNames from 'classnames';
 import { useIntl } from '@edx/frontend-platform/i18n';
 import { Button, Icon, IconButton } from '@openedx/paragon';
 import { AddCircle, ExpandLess, ExpandMore } from '@openedx/paragon/icons';
@@ -9,6 +10,7 @@ import type { XBlock } from '@src/data/types';
 import CompetencyIcon from '@src/generic/CompetencyIcon';
 import { LoadingSpinner } from '@src/generic/Loading';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
+import DisabledControlTooltip from '../DisabledControlTooltip';
 import rootMessages from '../messages';
 import messages from './messages';
 
@@ -24,6 +26,15 @@ interface SubsectionRowProps {
 /**
  * One graded subsection: its name plus the competency pill. The applied pill
  * shows regardless of `canEditCourse`.
+ *
+ * A competency blocks a course when it is an ancestor or descendant of this
+ * one in the taxonomy and already has associations in that course. The backend
+ * allows only one competency from each ancestor/descendant line per course,
+ * because nothing defines whether the parent's own criteria or a rollup of the
+ * child's would decide mastery. Sibling competencies don't block each other.
+ * In a blocked course the row shows a grey pill with a tooltip naming that
+ * competency, in place of the add pill. An already associated subsection
+ * keeps its filled pill.
  */
 const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
   const intl = useIntl();
@@ -32,12 +43,14 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
     associateSubsection,
     canEditCourse,
     competencyExternalId,
+    conflictingCompetencyName,
     isAssociating,
     status,
   } = useCompetencyAssociations();
   // The `course_index` response populates `.id`, never `.usageKey`.
   const isAssociated = associatedObjectIds.has(subsection.id);
   const canAssociate = status === 'success' && canEditCourse(courseId);
+  const conflictingCompetency = canAssociate ? conflictingCompetencyName(courseId) : undefined;
 
   const pillContent = (
     <>
@@ -51,7 +64,32 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
   );
 
   let pill: ReactNode = null;
-  if (isAssociated) {
+  if (conflictingCompetency !== undefined) {
+    pill = (
+      <DisabledControlTooltip
+        tooltip={intl.formatMessage(messages.hierarchyConflictTooltip, { competencyName: conflictingCompetency })}
+        placement="left"
+        variant="light"
+        className="course-search-browse__subsection-pill-tooltip-wrapper"
+        tooltipClassName="course-search-browse-blocked-tooltip"
+      >
+        <span
+          className={classNames(
+            'course-search-browse__subsection-pill course-search-browse__subsection-pill--blocked',
+            `course-search-browse__subsection-pill--${isAssociated ? 'applied' : 'available'}`,
+          )}
+        >
+          {isAssociated && <span className="sr-only">{intl.formatMessage(messages.subsectionAssociatedLabel)}</span>}
+          {competencyExternalId && (
+            <span className="sr-only">
+              {intl.formatMessage(rootMessages.competencyIdAccessibleLabel, { externalId: competencyExternalId })}
+            </span>
+          )}
+          {pillContent}
+        </span>
+      </DisabledControlTooltip>
+    );
+  } else if (isAssociated) {
     pill = (
       <span className="course-search-browse__subsection-pill course-search-browse__subsection-pill--applied">
         <span className="sr-only">{intl.formatMessage(messages.subsectionAssociatedLabel)}</span>

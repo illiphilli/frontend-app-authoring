@@ -75,6 +75,13 @@ const messages = defineMessages({
       + 'the author\'s permission to manage competency associations fails. The "Associate" controls are hidden '
       + 'until it succeeds.',
   },
+  hierarchyConflictTooltip: {
+    id: 'course-authoring.competency-management.course-search.hierarchy-conflict-tooltip',
+    defaultMessage: 'Already associated with {competencyName} in this course',
+    description: 'Tooltip on a disabled graded subsection row, explaining why it cannot be associated with the '
+      + 'selected competency. {competencyName} is a different, related competency (a parent or child of the '
+      + 'selected one) that already has content associated in this course, which blocks the selected one here.',
+  },
   dateRangeLabel: {
     id: 'course-authoring.competency-management.course-search.date-range-label',
     defaultMessage: 'Start Date',

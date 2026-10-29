@@ -18,6 +18,68 @@ export interface CourseOutlineSubtreeProps {
   courseId: string;
 }
 
+interface BlockedSubsectionRowProps {
+  displayName: string;
+  isAssociated: boolean;
+  competencyExternalId: string | null;
+  conflictingCompetencyName: string;
+}
+
+/**
+ * Row for a graded subsection in a course that another competency blocks (see
+ * `SubsectionRow` for when that happens). The competency's pill is grey and has
+ * no action icon, and hovering or focusing it shows a tooltip naming the
+ * competency that blocks the course. An already associated subsection keeps
+ * its filled pill.
+ */
+const BlockedSubsectionRow = ({
+  displayName,
+  isAssociated,
+  competencyExternalId,
+  conflictingCompetencyName,
+}: BlockedSubsectionRowProps) => {
+  const intl = useIntl();
+  const tooltip = intl.formatMessage(messages.hierarchyConflictTooltip, { competencyName: conflictingCompetencyName });
+
+  return (
+    <div
+      className={classNames(
+        'course-search-browse__subsection course-search-browse__subsection--blocked',
+        'd-flex align-items-center justify-content-between',
+      )}
+    >
+      <span>{displayName}</span>
+      <DisabledControlTooltip
+        tooltip={tooltip}
+        placement="left"
+        variant="light"
+        className="course-search-browse__subsection-pill-tooltip-wrapper"
+        tooltipClassName="course-search-browse-blocked-tooltip"
+      >
+        <span
+          className={classNames(
+            'course-search-browse__subsection-pill course-search-browse__subsection-pill--blocked',
+            `course-search-browse__subsection-pill--${isAssociated ? 'applied' : 'available'}`,
+          )}
+        >
+          {isAssociated && <span className="sr-only">{intl.formatMessage(messages.subsectionAssociatedLabel)}</span>}
+          {competencyExternalId && (
+            <span className="sr-only">
+              {intl.formatMessage(rootMessages.competencyIdAccessibleLabel, { externalId: competencyExternalId })}
+            </span>
+          )}
+          <CompetencyIcon aria-hidden="true" />
+          {competencyExternalId && (
+            <span className="course-search-browse__subsection-pill-id" aria-hidden="true">
+              {competencyExternalId}
+            </span>
+          )}
+        </span>
+      </DisabledControlTooltip>
+    </div>
+  );
+};
+
 interface SubsectionRowProps {
   subsection: XBlock;
   courseId: string;
@@ -63,33 +125,19 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
     </>
   );
 
-  let pill: ReactNode = null;
   if (conflictingCompetency !== undefined) {
-    pill = (
-      <DisabledControlTooltip
-        tooltip={intl.formatMessage(messages.hierarchyConflictTooltip, { competencyName: conflictingCompetency })}
-        placement="left"
-        variant="light"
-        className="course-search-browse__subsection-pill-tooltip-wrapper"
-        tooltipClassName="course-search-browse-blocked-tooltip"
-      >
-        <span
-          className={classNames(
-            'course-search-browse__subsection-pill course-search-browse__subsection-pill--blocked',
-            `course-search-browse__subsection-pill--${isAssociated ? 'applied' : 'available'}`,
-          )}
-        >
-          {isAssociated && <span className="sr-only">{intl.formatMessage(messages.subsectionAssociatedLabel)}</span>}
-          {competencyExternalId && (
-            <span className="sr-only">
-              {intl.formatMessage(rootMessages.competencyIdAccessibleLabel, { externalId: competencyExternalId })}
-            </span>
-          )}
-          {pillContent}
-        </span>
-      </DisabledControlTooltip>
+    return (
+      <BlockedSubsectionRow
+        displayName={subsection.displayName}
+        isAssociated={isAssociated}
+        competencyExternalId={competencyExternalId}
+        conflictingCompetencyName={conflictingCompetency}
+      />
     );
-  } else if (isAssociated) {
+  }
+
+  let pill: ReactNode = null;
+  if (isAssociated) {
     pill = (
       <span className="course-search-browse__subsection-pill course-search-browse__subsection-pill--applied">
         <span className="sr-only">{intl.formatMessage(messages.subsectionAssociatedLabel)}</span>

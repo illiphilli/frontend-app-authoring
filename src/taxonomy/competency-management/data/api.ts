@@ -56,6 +56,10 @@ export async function getCompetencyCriteriaGroups(
 
 /**
  * Get which of the given courses are blocked for a competency by the dominance rule.
+ *
+ * Reads only the first page. The backend returns at most one row per requested
+ * course and pins its page size to 100, while `courseKeys` holds one page of the
+ * course list (`PAGE_SIZE`, 10). Follow `next` if either number changes.
  */
 export async function getCompetencyBlockedCourses(
   tagId: number,

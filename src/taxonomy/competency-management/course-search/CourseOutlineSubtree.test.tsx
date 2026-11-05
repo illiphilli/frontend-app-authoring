@@ -418,6 +418,17 @@ describe('<CourseOutlineSubtree />', () => {
       expect(within(wrapper).getByText('Associated')).toHaveClass('sr-only');
     });
 
+    it('gives the focusable pill wrapper readable text when the competency has no external ID', async () => {
+      axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
+      renderSubtreeWithAssociations({ competencyExternalId: null, conflictingCompetencyName: blockedIn(courseId) });
+      await expandFirstSection();
+
+      const wrapper = tooltipWrapperOf(await screen.findByText('Subsection 1A (graded)')) as HTMLElement;
+      expect(within(wrapper).getByText(conflictTooltip)).toHaveClass('sr-only');
+      act(() => wrapper.focus());
+      expect(await screen.findByRole('tooltip')).toHaveTextContent(conflictTooltip);
+    });
+
     it('leaves the add pill in place, with no tooltip, when only a different course is blocked', async () => {
       axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
       renderSubtreeWithAssociations({

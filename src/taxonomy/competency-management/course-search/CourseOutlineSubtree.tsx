@@ -30,7 +30,9 @@ interface BlockedSubsectionRowProps {
  * `SubsectionRow` for when that happens). The competency's pill is grey and has
  * no action icon, and hovering or focusing it shows a tooltip naming the
  * competency that blocks the course. An already associated subsection keeps
- * its filled pill.
+ * its filled pill. With no external ID the pill has no readable text, so the
+ * wrapper (the row's only focus stop) carries the tooltip text for screen
+ * readers instead.
  */
 const BlockedSubsectionRow = ({
   displayName,
@@ -75,6 +77,7 @@ const BlockedSubsectionRow = ({
             </span>
           )}
         </span>
+        {!competencyExternalId && <span className="sr-only">{tooltip}</span>}
       </DisabledControlTooltip>
     </div>
   );

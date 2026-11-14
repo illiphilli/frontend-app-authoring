@@ -1,6 +1,7 @@
 import { buildOutlineIndex } from '@src/course-outline/__mocks__';
 import { getCourseOutlineIndexApiUrl } from '@src/course-outline/data';
 import {
+  act,
   initializeMocks,
   render,
   screen,
@@ -349,6 +350,117 @@ describe('<CourseOutlineSubtree />', () => {
 
       expect(addButton).toBeDisabled();
       expect(associateSubsection).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('in a course blocked by a related competency (#797)', () => {
+    const otherCourseId = 'course-v1:OrgX+CS999+2024';
+    const conflictTooltip = 'Already associated with Critical Thinking in this course';
+    const blockedIn = (blockedCourseId: string) => (id: string) => (
+      id === blockedCourseId ? 'Critical Thinking' : undefined
+    );
+    const rowBoxOf = (element: HTMLElement) => element.closest('.course-search-browse__subsection') as HTMLElement;
+    // A blocked row's tooltip hangs off the focusable wrapper around its grey pill.
+    const tooltipWrapperOf = (element: HTMLElement) => rowBoxOf(element).querySelector('span[tabindex="0"]');
+    const expandBothSections = async () => {
+      const user = userEvent.setup();
+      const expandButtons = await screen.findAllByRole('button', { name: 'Expand' });
+      await user.click(expandButtons[0]);
+      await user.click(screen.getByRole('button', { name: 'Expand' }));
+      return user;
+    };
+
+    it('shows a grey pill in place of every add pill and names the conflicting competency in a tooltip', async () => {
+      axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
+      renderSubtreeWithAssociations({
+        conflictingCompetencyName: blockedIn(courseId),
+        competencyExternalId: 'EXT-042',
+      });
+      const user = await expandBothSections();
+
+      expect(screen.queryByRole('button', { name: /Associate/ })).not.toBeInTheDocument();
+      const rowA = screen.getByText('Subsection 1A (graded)');
+      const rowB = screen.getByText('Subsection 2A (graded)');
+      expect(tooltipWrapperOf(rowB)).not.toBeNull();
+      const wrapper = tooltipWrapperOf(rowA)! as HTMLElement;
+      await user.hover(wrapper);
+      const tooltip = await screen.findByRole('tooltip');
+      expect(tooltip).toHaveTextContent(conflictTooltip);
+      expect(wrapper).toHaveAttribute('aria-describedby', tooltip.id);
+    });
+
+    it('shows the competency ID in the blocked pill, without the divider or the action icon', async () => {
+      axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
+      renderSubtreeWithAssociations({
+        conflictingCompetencyName: blockedIn(courseId),
+        competencyExternalId: 'EXT-042',
+      });
+      await expandFirstSection();
+
+      const wrapper = tooltipWrapperOf(await screen.findByText('Subsection 1A (graded)')) as HTMLElement;
+      expect(within(wrapper).getByText('EXT-042')).toHaveAttribute('aria-hidden', 'true');
+      expect(within(wrapper).getByText('Competency ID: EXT-042')).toBeInTheDocument();
+      expect(wrapper.querySelector('.course-search-browse__subsection-pill--blocked')).not.toBeNull();
+      expect(wrapper.querySelector('.course-search-browse__subsection-pill-divider')).toBeNull();
+      expect(wrapper.querySelector('svg:not([aria-hidden])')).toBeNull();
+    });
+
+    it('keeps the filled pill and the associated label on an associated row in a blocked course', async () => {
+      axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
+      renderSubtreeWithAssociations({
+        associatedObjectIds: new Set(['sub-1a']),
+        conflictingCompetencyName: blockedIn(courseId),
+      });
+      await expandFirstSection();
+
+      const wrapper = tooltipWrapperOf(await screen.findByText('Subsection 1A (graded)')) as HTMLElement;
+      expect(wrapper.querySelector('.course-search-browse__subsection-pill--applied')).not.toBeNull();
+      expect(within(wrapper).getByText('Associated')).toHaveClass('sr-only');
+    });
+
+    it('gives the focusable pill wrapper readable text when the competency has no external ID', async () => {
+      axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
+      renderSubtreeWithAssociations({ competencyExternalId: null, conflictingCompetencyName: blockedIn(courseId) });
+      await expandFirstSection();
+
+      const wrapper = tooltipWrapperOf(await screen.findByText('Subsection 1A (graded)')) as HTMLElement;
+      expect(within(wrapper).getByText(conflictTooltip)).toHaveClass('sr-only');
+      act(() => wrapper.focus());
+      expect(await screen.findByRole('tooltip')).toHaveTextContent(conflictTooltip);
+    });
+
+    it('leaves the add pill in place, with no tooltip, when only a different course is blocked', async () => {
+      axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
+      renderSubtreeWithAssociations({
+        conflictingCompetencyName: blockedIn(otherCourseId),
+        competencyExternalId: 'EXT-042',
+      });
+      await expandFirstSection();
+
+      expect(await screen.findByRole('button', { name: 'Associate EXT-042 with Subsection 1A (graded)' }))
+        .toBeEnabled();
+      expect(tooltipWrapperOf(screen.getByText('Subsection 1A (graded)'))).toBeNull();
+    });
+
+    it('hides the control instead of marking it blocked when the course is not writable', async () => {
+      axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
+      renderSubtreeWithAssociations({ canEditCourse: () => false, conflictingCompetencyName: blockedIn(courseId) });
+      await expandFirstSection();
+
+      expect(await screen.findByText('Subsection 1A (graded)')).toBeInTheDocument();
+      expect(tooltipWrapperOf(screen.getByText('Subsection 1A (graded)'))).toBeNull();
+    });
+
+    it.each([
+      ['pending' as const],
+      ['error' as const],
+    ])('fails open, with no blocked marking, while the status is %s', async (status) => {
+      axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
+      renderSubtreeWithAssociations({ status, conflictingCompetencyName: blockedIn(courseId) });
+      await expandFirstSection();
+
+      expect(await screen.findByText('Subsection 1A (graded)')).toBeInTheDocument();
+      expect(tooltipWrapperOf(screen.getByText('Subsection 1A (graded)'))).toBeNull();
     });
   });
 });

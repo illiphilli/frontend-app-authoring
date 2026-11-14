@@ -21,6 +21,7 @@ import { courseOutlineQueryKeys } from '@src/course-outline/data/queryKeys';
 import { useToastContext } from '@src/generic/toast-context';
 
 import {
+  useCompetencyBlockedCourses,
   useCompetencyCriteriaGroups,
   useCourseTaggingPermissions,
   useCreateCompetencyCriterion,
@@ -135,6 +136,11 @@ export interface CompetencyAssociationsContextBase {
    * (`courses.manage_tags`).
    */
   canEditCourse: (courseId: string) => boolean;
+  /** The related competency that blocks the given listed course, or
+   * `undefined` when the course is not blocked or the lookup is still
+   * loading or failed, so selection fails open (the backend still rejects).
+   */
+  conflictingCompetencyName: (courseId: string) => string | undefined;
   /** The `objectId` of every criterion in the listed courses, for the duplicate guard
    * and the content panel's "already associated" marking. Content can only be picked
    * from a listed course, so the guard needs nothing outside them.
@@ -428,6 +434,7 @@ export const CompetencyAssociationsProvider = ({
   }, []);
 
   const groupsQuery = useCompetencyCriteriaGroups(tagId, displayedCourseKeys);
+  const blockedCoursesQuery = useCompetencyBlockedCourses(tagId, displayedCourseKeys);
   const profileQuery = useDefaultCompetencyRuleProfile();
   const { mutateAsync: createCriterion, isPending: isCreatePending, variables } = useCreateCompetencyCriterion();
   const isAssociating = isCreatePending && variables?.tagId === tagId;
@@ -583,6 +590,11 @@ export const CompetencyAssociationsProvider = ({
     [permissionsByCourseId],
   );
 
+  const conflictingCompetencyName = useCallback(
+    (courseId: string) => blockedCoursesQuery.data?.find((row) => row.courseKey === courseId)?.conflictingTagValue,
+    [blockedCoursesQuery.data],
+  );
+
   const associateSubsection = useCallback((objectId: string, courseId: string) => {
     if (associatedIds.has(objectId)) {
       showToast(intl.formatMessage(messages.alreadyAssociatedToastMessage), undefined, undefined, InfoOutline);
@@ -720,6 +732,7 @@ export const CompetencyAssociationsProvider = ({
       expansionCountByCourseId,
       hasPermissionsError,
       canEditCourse,
+      conflictingCompetencyName,
       associatedObjectIds: associatedIds,
       accessibleCourseGroups,
       competencyExternalId,
@@ -754,6 +767,7 @@ export const CompetencyAssociationsProvider = ({
     expansionCountByCourseId,
     hasPermissionsError,
     canEditCourse,
+    conflictingCompetencyName,
     groupsIndex,
     systemDefaultProfile,
     associatedIds,
